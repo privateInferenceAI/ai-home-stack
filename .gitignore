@@ -1,0 +1,19 @@
+# Secrets
+.env
+*.pem
+*.key
+
+# Runtime data
+data/
+models/
+*.gguf
+backups/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS / editor
+.DS_Store
+*.swp
