@@ -62,16 +62,24 @@ of simulated history; raise the age range or run more seeds).
 
 ### 0.3 The dev box
 
-**Goal:** a cheap always-on host for the text stack (GPU comes in Phase 4).
+**Goal:** one box for the whole dev phase — text stack AND the two smaller LLMs.
+(Rev. 2026-09-30: single GPU box instead of t3.large + later GPU box. The Analyst
+stays behind an API for the entire dev phase; the front-desk and doc-reader run
+locally from the start, which turns GPU memory budgeting into a day-one lesson.)
 
-- AWS `t3.large` (2 vCPU / 8 GB), Ubuntu 24.04, 60 GB gp3, in the user's dev
-  account. No GPU needed yet.
-- Baseline hardening (same as ai-stack phase1a/1b teaches): updates, UFW deny
-  incoming except SSH, fail2ban, no password auth.
+- AWS **g6e.2xlarge** (8 vCPU / 64 GB RAM / 1× NVIDIA L40S 48 GB), Ubuntu 24.04,
+  200 GB gp3. On-demand: 8 vCPU fits the starter quota exactly. **Stop it when
+  not working** — $2.24/hr only while running; storage is pennies.
+- Security group: SSH (22) from your IP only. Nothing else inbound.
+- Upgrade path (planned exercise, not an accident): when the on-demand G quota
+  increase lands, relaunch as **g5.12xlarge** (4× A10G 96 GB) — that is where
+  per-GPU device pinning (`CUDA_VISIBLE_DEVICES`) gets learned for real.
+- Baseline hardening (same as ai-stack phase1a/1b teaches): updates, NVIDIA
+  driver + reboot, UFW deny incoming except SSH, fail2ban, no password auth.
 - Repo cloned to `/opt/ai-home-stack`; `.env` generated on-box, mode 600.
 
-**Verify:** `ufw status` shows only 22/tcp allowed; `fail2ban-client status sshd`
-shows the jail active.
+**Verify:** `nvidia-smi` lists the L40S (~46 GB); `ufw status` shows only 22/tcp;
+`fail2ban-client status sshd` shows the jail active.
 
 ### 0.4 Decisions log
 
@@ -87,8 +95,10 @@ a chat UI, per-key spend logging in Postgres. All against synthetic data.
 
 ### 1.1 Docker + network
 
-Install Docker CE; create external bridge `ai-home-net`. Same pattern as
-ai-stack phase1b, minus the NVIDIA toolkit (no GPU on this box).
+Install Docker CE; install the NVIDIA container toolkit; create external bridge
+`ai-home-net`. Same pattern as ai-stack phase1b. Verify with
+`docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi` —
+Docker must see the L40S before anything else continues.
 
 ### 1.2 Postgres
 
@@ -112,7 +122,29 @@ story working.
 Container, port 3000, model-filtered to the gateway models, signups disabled
 after the admin account exists, telemetry off. SSH-tunnel access only.
 
-### 1.5 First end-to-end probe
+### 1.5 The two local brains (vLLM) + GPU memory budgeting
+
+Two vLLM containers share the single L40S; the Analyst stays on the DashScope
+API route (zero GPU). Memory budget on 48 GB:
+
+| Container | Model | `--gpu-memory-utilization` | VRAM cap |
+|---|---|---|---|
+| vllm-front-desk | Qwen3-8B (FP8) | 0.20 | ~9.6 GB |
+| vllm-doc-reader | Qwen3-VL-32B (FP8) | 0.65 | ~31 GB |
+| (reserve) | TEI embeddings/reranker, Phase 2 | 0.10 | ~5 GB |
+
+Single-GPU rule: `--gpu-memory-utilization` is a fraction of TOTAL card memory,
+per server process. The fractions must sum under ~0.95 or the second server
+OOMs at load. Multi-GPU rule (g5.12xlarge, later): pin whole devices with
+`CUDA_VISIBLE_DEVICES` instead of fractions; the doc-reader may span two cards
+with `--tensor-parallel-size 2`. LiteLLM model entries point at
+`http://vllm-front-desk:8000/v1` and `http://vllm-doc-reader:8001/v1`.
+
+**Verify:** `nvidia-smi` shows both server processes with their expected
+memory; a chat call to `front-desk` and a one-image call to `doc-reader`
+both return; the DashScope route still answers for `analyst`.
+
+### 1.6 First end-to-end probe
 
 Ask the analyst (via the UI) a question answerable only from the synthetic
 patient's FHIR bundle pasted into context. Confirms: routing, keys, spend
