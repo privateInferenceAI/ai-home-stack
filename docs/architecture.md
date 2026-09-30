@@ -23,6 +23,14 @@ quantization back in, which we rejected for medical reasoning.
 with the user's real (synthetic) workloads before hardware purchase. If GLM wins
 decisively, the box grows to 6 GPUs.
 
+**Update 2026-09-29 — LOCKED.** Qwen confirmed for all three roles; the GLM A/B
+contingency is dropped. Swap-ability is preserved by design rather than by test:
+models are config behind LiteLLM, not architecture. A future model change is a
+gateway config edit plus a parity-suite run, not a stack rebuild. To keep that
+promise true: model names live in env/config only, prompts stay model-agnostic,
+and no role's logic may hardcode Qwen-specific behavior. Hardware baseline (D8)
+confirmed at 4× 96 GB.
+
 ### D2. Voice cascade, not speech-to-speech
 
 ASR (Parakeet/SenseVoice) → LLM → TTS (IndexTTS-2/CosyVoice2) through LiveKit.
@@ -72,4 +80,4 @@ remote access — not multi-user leakage.
 
 4× 96 GB GPU (384 GB VRAM) server: Analyst at FP8 (~235 GB) + ~100 GB KV cache
 headroom + room for front-desk/VL/ASR/TTS models. Baseline cost $40–50K.
-Final sizing locked only after the D1 contingency A/B completes.
+Sizing confirmed 2026-09-29 with the D1 lock.

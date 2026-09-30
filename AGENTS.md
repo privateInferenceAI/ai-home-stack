@@ -16,7 +16,7 @@ advocate and general voice assistant for exactly one user**, running on a home s
 
 ## Key decisions (details in docs/architecture.md)
 
-1. **Qwen3 family for all three LLM roles**: Analyst = Qwen3-235B-A22B (FP8),
+1. **Qwen3 family for all three LLM roles** (locked 2026-09-29): Analyst = Qwen3-235B-A22B (FP8),
    Front desk = Qwen3 ~8B, Document reader = Qwen3-VL ~32B.
 2. **Voice cascade, not speech-to-speech**: ASR → LLM → TTS through LiveKit, so every
    word is auditable text at the gateway. S2S (Moshi/Qwen-Omni) demo only.
